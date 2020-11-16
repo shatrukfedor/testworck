@@ -1,9 +1,12 @@
 import random
+import re
 import string
 import xml.etree.ElementTree as xml
+import xml.dom.minidom as minidom
 import os
 import zipfile
 from sys import platform
+import csv
 
 
 if platform == "linux" or platform == "linux2":
@@ -26,21 +29,25 @@ def get_random_string(length: int) -> str:
     :type length: int
     :return: рандомная строка
     """
-    return ''.join(random.choices(string.ascii_uppercase, k=length))
+    return ''.join(random.choices(string.ascii_letters, k=length))
 
 
 def create_xml(file_name: str):
-    """Создает xml файл"""
+    """
+    Создает xml файл
+    :param file_name: имя файла
+    :type file_name: str
+    """
     global used_strings
     root = xml.Element('root')
-    id = xml.Element('id')
+    id_el = xml.Element('id')
     while True:
         value = get_random_string(LENGTH_STRING)
         if value not in used_strings:
-            id.text = value
+            id_el.text = value
             used_strings.append(value)
             break
-    root.append(id)
+    root.append(id_el)
     level = xml.Element('level')
     level.text = str(random.randint(MIN_INT, MAX_INT))
     root.append(level)
@@ -53,7 +60,13 @@ def create_xml(file_name: str):
 
 
 def create_zip_from_folder(file_name: str, dir_path: str):
-    """Создает zip файл в заданой директории"""
+    """
+    Архивирует заданную директорию
+    :param file_name: имя файла
+    :type file_name: str
+    :param dir_path: путь к директории для архивации
+    :type dir_path: str
+    """
     zip_file = zipfile.ZipFile(file_name, 'w')
     for root, dirs, files in os.walk(dir_path):
         for file in files:
@@ -62,8 +75,58 @@ def create_zip_from_folder(file_name: str, dir_path: str):
 
 
 def create_new_folder(path: str):
-    """Создает новую директорию"""
+    """
+    Создает новую директорию
+    :param path: путь к создаваемой директории
+    :type path: str
+    """
     try:
         os.mkdir(path)
     except OSError:
         print("Создать директорию %s не удалось" % path)
+
+
+def get_all_zip_files_from_directory(dir_path: str) -> list:
+    '''
+    вернет список всех zip файлов из директории
+    :param dir_path: абсолютный путь директории
+    :type dir_path: str
+    :return: список абсолютных путей zip файлов
+    '''
+    zip_files = []
+    for root, dirs, files in os.walk(dir_path):
+        for file in files:
+            if re.findall(r'\.zip', file):
+                zip_files.append(os.path.join(root, file))
+    return zip_files
+
+
+def xml_parser_from_zip(file_obj: object) -> list:
+    """
+    парсит xml из zip файла
+    :param file_obj: zip file
+    :return: list
+    """
+    parse_list = []
+    xml_string = file_obj.read()
+    doc = minidom.parseString(xml_string.decode())
+    id_el = doc.getElementsByTagName('id')[0].childNodes[0].data
+    level = doc.getElementsByTagName('level')[0].childNodes[0].data
+    objects = []
+    for child in doc.getElementsByTagName('objects')[0].childNodes:
+        objects.append(child.nodeName)
+    parse_list.append([[id_el, level], [id_el, objects]])
+    return parse_list
+
+
+def csv_append_element(file_name: str, el: list):
+    """
+    дозаписывает элемент в файл
+    :param file_name: путь к файлу
+    :type file_name: str
+    :param el: элемент для записи
+    :type el: list
+    """
+    with open(file_name, 'a') as file:
+        F_N_WRITER = csv.writer(file)
+        F_N_WRITER.writerow(el)
